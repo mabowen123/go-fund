@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" type="text/css" href="/static/css/index.css">
+</head>
+<body>
+<div id="app">
+    <el-container>
+        <el-header>
+            <el-input v-model="createData.fund_id" style="width:180px;margin-top: 40px"
+                      placeholder="请输入基金代码"></el-input>
+            <el-input v-model="createData.share" style="width:180px;margin: 40px 10px" placeholder="请输入持有份额"></el-input>
+            <el-button style="margin: 40px 10px" type="primary" @click="add" :loading="createData.loading">添加
+            </el-button>
+            <el-button style="float:right;margin: 40px 10px" @click="logout" type="primary">注销
+            </el-button>
+        </el-header>
+        <el-main>
+            <el-table :data="data.list" :row-class-name="tableRowClassName" show-summary :summary-method="summary"
+                      border>
+                <el-table-column
+                        prop="FundName"
+                        label="基金名称"
+                ></el-table-column>
+                <el-table-column
+                        prop="FundId"
+                        label="基金代码"
+                ></el-table-column>
+                <el-table-column
+                        prop="Rate"
+                        sortable
+                        label="预估涨幅(%)"
+                ></el-table-column>
+                <el-table-column
+                        prop="ActualRate"
+                        sortable
+                        label="实际涨幅(%)"
+                ></el-table-column>
+                <el-table-column
+                        prop="EstimatedEarnings"
+                        sortable
+                        label="预估收益"
+                ></el-table-column>
+                <el-table-column
+                        prop="ActualEarnings"
+                        sortable
+                        label="实际收益"
+                ></el-table-column>
+                <el-table-column
+                        prop="UpdateAt"
+                        label="更新时间"
+                ></el-table-column>
+                <el-table-column
+                        width="100px"
+                        label="操作"
+                >
+                    <template slot-scope="scope">
+                        <el-button type="text" size="mini" @click="del(scope.row)">删除</el-button>
+                    </template>
+
+                </el-table-column>
+            </el-table>
+        </el-main>
+    </el-container>
+
+</div>
+</body>
+<script type="text/javascript" src="/static/js/vue.js"></script>
+<script type="text/javascript" src="/static/js/index.js"></script>
+<script type="text/javascript" src="/static/js/jquery-3.5.1.min.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                time: 60,
+                standard_time: 60,
+                timeVal: undefined,
+                data: {
+                    list: []
+                },
+                createData: {
+                    fund_id: undefined,
+                    share: undefined,
+                    loading: false
+                }
+            }
+        },
+        mounted() {
+            this.fundList()
+            this.timeVals()
+            this.reptile()
+            this.countdown()
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    window.clearInterval(window['timeVal'])
+                } else {
+                    if (window['timeVal'] !== undefined) {
+                        window.clearInterval(window['timeVal'])
+                    }
+                    this.fundList()
+                    this.reptile()
+                    this.timeVals()
+                }
+            })
+        },
+        methods: {
+            timeVals() {
+                window['timeVal'] = window.setInterval(() => {
+                    setTimeout(() => {
+                        this.fundList()
+                    }, 0)
+                }, this.standard_time * 1000)
+            },
+            countdown() {
+                window.setInterval(() => {
+                    setTimeout(() => {
+                        this.time = this.time - 1
+                    }, 0)
+                }, 1000)
+            },
+            fundList() {
+                const _self = this
+                $.ajax({
+                    type: "GET",
+                    url: "/api/reptile",
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("Authorization", "Bearer " + localStorage.token)
+                    },
+                    success: function (res) {
+                        if (res.code === 0) {
+                            _self.data.list = Object.values(res.data)
+                        }
+                    },
+                    error: function (err) {
+                        if (err.status === 401) {
+                            localStorage.removeItem('token')
+                            _self.$message({message: "用户信息过期,请重新登陆,正在返回登陆界面....", type: "error"})
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 3 * 1000)
+                        }
+                    },
+                    complete: function () {
+                        _self.time = _self.standard_time
+                    }
+                })
+            },
+            reptile() {
+                const _self = this
+                $.ajax({
+                    type: "POST",
+                    url: "/api/reptile",
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("Authorization", "Bearer " + localStorage.token)
+                    },
+                    error: function (err) {
+                        if (err.status === 401) {
+                            _self.$message({message: "用户信息过期,请重新登陆,正在返回登陆界面....", type: "error"})
+                            localStorage.removeItem('token')
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 3 * 1000)
+                        }
+                    },
+                    complete: function () {
+                        _self.time = _self.standard_time
+                    }
+                })
+            },
+            tableRowClassName({row, rowIndex}) {
+                const rate = parseFloat(row.Rate)
+                if (rate > 0) {
+                    return 'red'
+                } else if (rate < 0) {
+                    return 'green'
+                }
+            },
+            add() {
+                const _self = this
+                _self.createData.loading = true
+                $.ajax({
+                    type: "POST",
+                    url: "api/fund",
+                    data: _self.createData,
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("Authorization", "Bearer " + localStorage.token)
+                    },
+                    success: function (res) {
+                        if (res.code === 0) {
+                            _self.$message({message: "添加成功,请等待更新....", type: "success"})
+                        }
+                    },
+                    error: function (err) {
+                        if (err.status === 401) {
+                            _self.$message({message: "用户信息过期,请重新登陆,正在返回登陆界面....", type: "error"})
+                            localStorage.removeItem('token')
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 3 * 1000)
+                        }
+                    },
+                    complete: function () {
+                        _self.fundList()
+                        _self.createData.loading = false
+                    }
+                })
+            },
+            summary({columns, data}) {
+                const sums = []
+                let estimatedEarnings = 0
+                data.forEach(item => {
+                    if (item.EstimatedEarnings) {
+                        estimatedEarnings += parseFloat(item.EstimatedEarnings.toString())
+                    }
+                })
+                let actualEarnings = 0
+                data.forEach(item => {
+                    if (item.actualEarnings) {
+                        actualEarnings += parseFloat(item.ActualEarnings.toString())
+                    }
+                })
+
+                sums[0] = '合计'
+                sums[4] = estimatedEarnings.toFixed(2)
+                sums[5] = actualEarnings.toFixed(2)
+                sums[6] = this.time + '秒后刷新'
+                return sums
+            },
+            del(row) {
+                const _self = this
+                $.ajax({
+                    type: "POST",
+                    url: "/api/fund/del",
+                    data: {
+                        id: row.Id
+                    },
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("Authorization", "Bearer " + localStorage.token)
+                    },
+                    success: function (res) {
+                        if (res.code === 0) {
+                            _self.$message({message: "删除成功", type: "success"})
+                        }
+                    },
+                    error: function (err) {
+                        if (err.status === 401) {
+                            _self.$message({message: "用户信息过期,请重新登陆,正在返回登陆界面....", type: "error"})
+                            localStorage.removeItem('token')
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 3 * 1000)
+                        }
+                    },
+                    complete: function () {
+                        _self.fundList()
+                    }
+                })
+            },
+            logout() {
+                const _self = this
+                $.ajax({
+                    type: "POST",
+                    url: "/api/logout",
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("Authorization", "Bearer " + localStorage.token)
+                    },
+                    success: function (res) {
+                        if (res.code === 0) {
+                            _self.$message({message: "退出成功,正在返回登陆界面...", type: "success"})
+                            localStorage.removeItem('token')
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 2 * 1000)
+                        }
+                    },
+                    error: function (err) {
+                        if (err.status === 401) {
+                            _self.$message({message: "用户信息过期,请重新登陆,正在返回登陆界面....", type: "error"})
+                            localStorage.removeItem('token')
+                            setTimeout(function () {
+                                $(location).attr('href', '/')
+                            }, 3 * 1000)
+                        }
+                    }
+                })
+            }
+        }
+    })
+</script>
+<style>
+    .el-table .green {
+        background: #a5fd06;
+    }
+
+    .el-table .red {
+        background: #f92f00;
+    }
+</style>
+</html>
